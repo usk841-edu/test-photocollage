@@ -34,6 +34,11 @@
     拡大縮小：
     <input type="range" id="scale" min="0.5" max="2" step="0.01" value="1">
   </label>
+  <br>
+  <label>
+    <input type="checkbox" id="rotate">
+    90度回転
+  </label>
 </div>
 
 <button id="download">この内容でダウンロード</button>
@@ -52,15 +57,24 @@
 
   const input = document.getElementById('photos');
   const scaleInput = document.getElementById('scale');
+  const rotateInput = document.getElementById('rotate');
 
   let tiles = [];
   let activeIndex = null;
   let dragStart = null;
 
   input.addEventListener('change', loadPhotos);
+
   scaleInput.addEventListener('input', () => {
     if (activeIndex !== null) {
       tiles[activeIndex].scale = +scaleInput.value;
+      draw();
+    }
+  });
+
+  rotateInput.addEventListener('change', () => {
+    if (activeIndex !== null) {
+      tiles[activeIndex].rotate = rotateInput.checked;
       draw();
     }
   });
@@ -69,7 +83,9 @@
     const { offsetX, offsetY } = getCanvasPos(e);
     activeIndex = hitTest(offsetX, offsetY);
     if (activeIndex !== null) {
-      scaleInput.value = tiles[activeIndex].scale;
+      const t = tiles[activeIndex];
+      scaleInput.value = t.scale;
+      rotateInput.checked = t.rotate;
       dragStart = { x: offsetX, y: offsetY };
     }
   });
@@ -77,103 +93,12 @@
   canvas.addEventListener('pointermove', e => {
     if (dragStart && activeIndex !== null) {
       const { offsetX, offsetY } = getCanvasPos(e);
-      const dx = offsetX - dragStart.x;
-      const dy = offsetY - dragStart.y;
-      tiles[activeIndex].offsetX += dx;
-      tiles[activeIndex].offsetY += dy;
+      tiles[activeIndex].offsetX += offsetX - dragStart.x;
+      tiles[activeIndex].offsetY += offsetY - dragStart.y;
       dragStart = { x: offsetX, y: offsetY };
       draw();
     }
   });
 
   canvas.addEventListener('pointerup', () => dragStart = null);
-  canvas.addEventListener('pointerleave', () => dragStart = null);
-
-  document.getElementById('download').addEventListener('click', () => {
-    const a = document.createElement('a');
-    a.download = 'a4_3x7.png';
-    a.href = canvas.toDataURL('image/png');
-    a.click();
-  });
-
-  async function loadPhotos() {
-    tiles = [];
-    const files = Array.from(input.files).slice(0, COLS * ROWS);
-    for (let i = 0; i < files.length; i++) {
-      const img = await loadImage(files[i]);
-      tiles.push({
-        img,
-        scale: 1,
-        offsetX: 0,
-        offsetY: 0
-      });
-    }
-    draw();
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const tileW = A4_WIDTH / COLS;
-    const tileH = A4_HEIGHT / ROWS;
-
-    tiles.forEach((t, i) => {
-      const col = i % COLS;
-      const row = Math.floor(i / COLS);
-
-      const baseScale = Math.max(
-        tileW / t.img.width,
-        tileH / t.img.height
-      );
-
-      const scale = baseScale * t.scale;
-      const w = t.img.width * scale;
-      const h = t.img.height * scale;
-
-      const x = col * tileW + (tileW - w) / 2 + t.offsetX;
-      const y = row * tileH + (tileH - h) / 2 + t.offsetY;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(col * tileW, row * tileH, tileW, tileH);
-      ctx.clip();
-      ctx.drawImage(t.img, x, y, w, h);
-      ctx.restore();
-
-      if (i === activeIndex) {
-        ctx.strokeStyle = '#007aff';
-        ctx.lineWidth = 6;
-        ctx.strokeRect(col * tileW, row * tileH, tileW, tileH);
-      }
-    });
-  }
-
-  function hitTest(x, y) {
-    const tileW = A4_WIDTH / COLS;
-    const tileH = A4_HEIGHT / ROWS;
-    const col = Math.floor(x / tileW);
-    const row = Math.floor(y / tileH);
-    const index = row * COLS + col;
-    return tiles[index] ? index : null;
-  }
-
-  function getCanvasPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      offsetX: (e.clientX - rect.left) * (canvas.width / rect.width),
-      offsetY: (e.clientY - rect.top) * (canvas.height / rect.height)
-    };
-  }
-
-  function loadImage(file) {
-    return new Promise(resolve => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.src = URL.createObjectURL(file);
-    });
-  }
-})();
-</script>
-
-</body>
-</html>
+  canvas.addEventListener('pointerleave'
