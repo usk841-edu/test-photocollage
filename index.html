@@ -101,4 +101,106 @@
   });
 
   canvas.addEventListener('pointerup', () => dragStart = null);
-  canvas.addEventListener('pointerleave'
+  canvas.addEventListener('pointerleave', () => dragStart = null);
+
+  document.getElementById('download').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.download = 'a4_3x7.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  });
+
+  async function loadPhotos() {
+    tiles = [];
+    const files = Array.from(input.files).slice(0, COLS * ROWS);
+    for (let i = 0; i < files.length; i++) {
+      const img = await loadImage(files[i]);
+      tiles.push({
+        img,
+        scale: 1,
+        offsetX: 0,
+        offsetY: 0,
+        rotate: false
+      });
+    }
+    draw();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const tileW = A4_WIDTH / COLS;
+    const tileH = A4_HEIGHT / ROWS;
+
+    tiles.forEach((t, i) => {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+
+      const baseScale = Math.max(
+        tileW / (t.rotate ? t.img.height : t.img.width),
+        tileH / (t.rotate ? t.img.width : t.img.height)
+      );
+
+      const scale = baseScale * t.scale;
+
+      // ★ 追加：回転を考慮した描画サイズ
+      const drawW = (t.rotate ? t.img.height : t.img.width) * scale;
+      const drawH = (t.rotate ? t.img.width : t.img.height) * scale;
+
+      const cx = col * tileW + tileW / 2 + t.offsetX;
+      const cy = row * tileH + tileH / 2 + t.offsetY;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(col * tileW, row * tileH, tileW, tileH);
+      ctx.clip();
+
+      ctx.translate(cx, cy);
+      if (t.rotate) ctx.rotate(Math.PI / 2);
+      ctx.drawImage(
+        t.img,
+        -drawW / 2,
+        -drawH / 2,
+        drawW,
+        drawH
+      );
+
+      ctx.restore();
+
+      if (i === activeIndex) {
+        ctx.strokeStyle = '#007aff';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(col * tileW, row * tileH, tileW, tileH);
+      }
+    });
+  }
+
+  function hitTest(x, y) {
+    const tileW = A4_WIDTH / COLS;
+    const tileH = A4_HEIGHT / ROWS;
+    const col = Math.floor(x / tileW);
+    const row = Math.floor(y / tileH);
+    const index = row * COLS + col;
+    return tiles[index] ? index : null;
+  }
+
+  function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      offsetX: (e.clientX - rect.left) * (canvas.width / rect.width),
+      offsetY: (e.clientY - rect.top) * (canvas.height / rect.height)
+    };
+  }
+
+  function loadImage(file) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.src = URL.createObjectURL(file);
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
