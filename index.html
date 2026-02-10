@@ -1,99 +1,168 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>A4 Photo Tiler</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      padding: 16px;
-    }
-    button {
-      margin-top: 12px;
-      padding: 10px 16px;
-      font-size: 16px;
-    }
-    canvas {
-      width: 100%;
-      max-width: 600px;
-      border: 1px solid #ccc;
-      margin-top: 12px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>A4 Photo Tiler Editor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    padding: 16px;
+  }
+  canvas {
+    width: 100%;
+    max-width: 600px;
+    border: 1px solid #ccc;
+    touch-action: none;
+    margin-top: 12px;
+  }
+  .controls {
+    margin-top: 12px;
+  }
+</style>
 </head>
 <body>
 
-<h2>A4 3×7 写真タイル（プレビュー付き）</h2>
+<h2>A4 3×7 写真タイル（編集可）</h2>
 
 <input type="file" id="photos" accept="image/*" multiple>
-<br>
-<button id="download">この内容でダウンロード</button>
 
 <canvas id="canvas"></canvas>
+
+<div class="controls">
+  <label>
+    拡大縮小：
+    <input type="range" id="scale" min="0.5" max="2" step="0.01" value="1">
+  </label>
+</div>
+
+<button id="download">この内容でダウンロード</button>
 
 <script>
 (() => {
   const COLS = 3;
   const ROWS = 7;
-
-  // A4 300dpi
-  const A4_WIDTH  = 2480;
+  const A4_WIDTH = 2480;
   const A4_HEIGHT = 3508;
 
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
-
-  canvas.width  = A4_WIDTH;
+  canvas.width = A4_WIDTH;
   canvas.height = A4_HEIGHT;
 
   const input = document.getElementById('photos');
-  const button = document.getElementById('download');
+  const scaleInput = document.getElementById('scale');
 
-  input.addEventListener('change', drawPreview);
-  button.addEventListener('click', download);
+  let tiles = [];
+  let activeIndex = null;
+  let dragStart = null;
 
-  async function drawPreview() {
-    if (!input.files.length) return;
+  input.addEventListener('change', loadPhotos);
+  scaleInput.addEventListener('input', () => {
+    if (activeIndex !== null) {
+      tiles[activeIndex].scale = +scaleInput.value;
+      draw();
+    }
+  });
 
+  canvas.addEventListener('pointerdown', e => {
+    const { offsetX, offsetY } = getCanvasPos(e);
+    activeIndex = hitTest(offsetX, offsetY);
+    if (activeIndex !== null) {
+      scaleInput.value = tiles[activeIndex].scale;
+      dragStart = { x: offsetX, y: offsetY };
+    }
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (dragStart && activeIndex !== null) {
+      const { offsetX, offsetY } = getCanvasPos(e);
+      const dx = offsetX - dragStart.x;
+      const dy = offsetY - dragStart.y;
+      tiles[activeIndex].offsetX += dx;
+      tiles[activeIndex].offsetY += dy;
+      dragStart = { x: offsetX, y: offsetY };
+      draw();
+    }
+  });
+
+  canvas.addEventListener('pointerup', () => dragStart = null);
+  canvas.addEventListener('pointerleave', () => dragStart = null);
+
+  document.getElementById('download').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.download = 'a4_3x7.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  });
+
+  async function loadPhotos() {
+    tiles = [];
+    const files = Array.from(input.files).slice(0, COLS * ROWS);
+    for (let i = 0; i < files.length; i++) {
+      const img = await loadImage(files[i]);
+      tiles.push({
+        img,
+        scale: 1,
+        offsetX: 0,
+        offsetY: 0
+      });
+    }
+    draw();
+  }
+
+  function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const tileW = A4_WIDTH / COLS;
     const tileH = A4_HEIGHT / ROWS;
 
-    const files = Array.from(input.files).slice(0, COLS * ROWS);
-
-    for (let i = 0; i < files.length; i++) {
-      const img = await loadImage(files[i]);
-
+    tiles.forEach((t, i) => {
       const col = i % COLS;
       const row = Math.floor(i / COLS);
 
-      const scale = Math.max(
-        tileW / img.width,
-        tileH / img.height
+      const baseScale = Math.max(
+        tileW / t.img.width,
+        tileH / t.img.height
       );
 
-      const w = img.width * scale;
-      const h = img.height * scale;
+      const scale = baseScale * t.scale;
+      const w = t.img.width * scale;
+      const h = t.img.height * scale;
 
-      const x = col * tileW + (tileW - w) / 2;
-      const y = row * tileH + (tileH - h) / 2;
+      const x = col * tileW + (tileW - w) / 2 + t.offsetX;
+      const y = row * tileH + (tileH - h) / 2 + t.offsetY;
 
-      ctx.drawImage(img, x, y, w, h);
-    }
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(col * tileW, row * tileH, tileW, tileH);
+      ctx.clip();
+      ctx.drawImage(t.img, x, y, w, h);
+      ctx.restore();
+
+      if (i === activeIndex) {
+        ctx.strokeStyle = '#007aff';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(col * tileW, row * tileH, tileW, tileH);
+      }
+    });
   }
 
-  function download() {
-    if (!input.files.length) {
-      alert('写真を選択してください');
-      return;
-    }
+  function hitTest(x, y) {
+    const tileW = A4_WIDTH / COLS;
+    const tileH = A4_HEIGHT / ROWS;
+    const col = Math.floor(x / tileW);
+    const row = Math.floor(y / tileH);
+    const index = row * COLS + col;
+    return tiles[index] ? index : null;
+  }
 
-    const link = document.createElement('a');
-    link.download = 'a4_3x7.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+  function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      offsetX: (e.clientX - rect.left) * (canvas.width / rect.width),
+      offsetY: (e.clientY - rect.top) * (canvas.height / rect.height)
+    };
   }
 
   function loadImage(file) {
