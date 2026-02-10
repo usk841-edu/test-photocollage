@@ -136,6 +136,7 @@
       const col = i % COLS;
       const row = Math.floor(i / COLS);
 
+      // 回転時のみ、フィット計算で縦横を入れ替える
       const baseScale = Math.max(
         tileW / (t.rotate ? t.img.height : t.img.width),
         tileH / (t.rotate ? t.img.width : t.img.height)
@@ -143,9 +144,9 @@
 
       const scale = baseScale * t.scale;
 
-      // ★ 追加：回転を考慮した描画サイズ
-      const drawW = (t.rotate ? t.img.height : t.img.width) * scale;
-      const drawH = (t.rotate ? t.img.width : t.img.height) * scale;
+      // ★ drawImage には「元画像サイズ」を使う
+      const drawW = t.img.width * scale;
+      const drawH = t.img.height * scale;
 
       const cx = col * tileW + tileW / 2 + t.offsetX;
       const cy = row * tileH + tileH / 2 + t.offsetY;
@@ -157,13 +158,7 @@
 
       ctx.translate(cx, cy);
       if (t.rotate) ctx.rotate(Math.PI / 2);
-      ctx.drawImage(
-        t.img,
-        -drawW / 2,
-        -drawH / 2,
-        drawW,
-        drawH
-      );
+      ctx.drawImage(t.img, -drawW / 2, -drawH / 2, drawW, drawH);
 
       ctx.restore();
 
