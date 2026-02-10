@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>A4 Photo Tiler</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 16px;
+    }
+    button {
+      margin-top: 12px;
+      padding: 10px 16px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>A4 3×7 写真タイル</h2>
+
+<input type="file" id="photos" accept="image/*" multiple>
+<br>
+<button id="download">画像を生成してダウンロード</button>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+(() => {
+  const COLS = 3;
+  const ROWS = 7;
+
+  // A4 300dpi
+  const A4_WIDTH  = 2480;
+  const A4_HEIGHT = 3508;
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width  = A4_WIDTH;
+  canvas.height = A4_HEIGHT;
+
+  const input = document.getElementById('photos');
+  const button = document.getElementById('download');
+
+  button.addEventListener('click', async () => {
+    if (!input.files.length) {
+      alert('写真を選択してください');
+      return;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const tileW = A4_WIDTH / COLS;
+    const tileH = A4_HEIGHT / ROWS;
+
+    const files = Array.from(input.files).slice(0, COLS * ROWS);
+
+    for (let i = 0; i < files.length; i++) {
+      const img = await loadImage(files[i]);
+
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+
+      // 画像をタイルにフィット（中央トリミング）
+      const scale = Math.max(
+        tileW / img.width,
+        tileH / img.height
+      );
+
+      const w = img.width * scale;
+      const h = img.height * scale;
+
+      const x = col * tileW + (tileW - w) / 2;
+      const y = row * tileH + (tileH - h) / 2;
+
+      ctx.drawImage(img, x, y, w, h);
+    }
+
+    const link = document.createElement('a');
+    link.download = 'a4_3x7.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+
+  function loadImage(file) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.src = URL.createObjectURL(file);
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
