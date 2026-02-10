@@ -14,17 +14,23 @@
       padding: 10px 16px;
       font-size: 16px;
     }
+    canvas {
+      width: 100%;
+      max-width: 600px;
+      border: 1px solid #ccc;
+      margin-top: 12px;
+    }
   </style>
 </head>
 <body>
 
-<h2>A4 3×7 写真タイル</h2>
+<h2>A4 3×7 写真タイル（プレビュー付き）</h2>
 
 <input type="file" id="photos" accept="image/*" multiple>
 <br>
-<button id="download">画像を生成してダウンロード</button>
+<button id="download">この内容でダウンロード</button>
 
-<canvas id="canvas" style="display:none;"></canvas>
+<canvas id="canvas"></canvas>
 
 <script>
 (() => {
@@ -44,11 +50,11 @@
   const input = document.getElementById('photos');
   const button = document.getElementById('download');
 
-  button.addEventListener('click', async () => {
-    if (!input.files.length) {
-      alert('写真を選択してください');
-      return;
-    }
+  input.addEventListener('change', drawPreview);
+  button.addEventListener('click', download);
+
+  async function drawPreview() {
+    if (!input.files.length) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -63,7 +69,6 @@
       const col = i % COLS;
       const row = Math.floor(i / COLS);
 
-      // 画像をタイルにフィット（中央トリミング）
       const scale = Math.max(
         tileW / img.width,
         tileH / img.height
@@ -77,12 +82,19 @@
 
       ctx.drawImage(img, x, y, w, h);
     }
+  }
+
+  function download() {
+    if (!input.files.length) {
+      alert('写真を選択してください');
+      return;
+    }
 
     const link = document.createElement('a');
     link.download = 'a4_3x7.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
-  });
+  }
 
   function loadImage(file) {
     return new Promise(resolve => {
