@@ -6,23 +6,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-  body {
-    font-family: system-ui, -apple-system, sans-serif;
-    padding: 16px;
-  }
-  canvas {
-    width: 100%;
-    max-width: 600px;
-    border: 1px solid #ccc;
-    touch-action: none;
-    margin-top: 12px;
-  }
-  .controls {
-    margin-top: 12px;
-  }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 16px;
+}
+canvas {
+  width: 100%;
+  max-width: 600px;
+  border: 1px solid #ccc;
+  touch-action: none;
+  margin-top: 12px;
+}
+.controls {
+  margin-top: 12px;
+}
+button {
+  margin-top: 12px;
+  padding: 10px 16px;
+  font-size: 16px;
+}
 </style>
 
-<!-- HEIC対応ライブラリ -->
+<!-- HEIC対応 -->
 <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
 </head>
 <body>
@@ -57,81 +62,84 @@
 
 <script>
 (() => {
-  const COLS = 3;
-  const ROWS = 7;
-  const A4_WIDTH = 2480;
-  const A4_HEIGHT = 3508;
 
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = A4_WIDTH;
-  canvas.height = A4_HEIGHT;
+const COLS = 3;
+const ROWS = 7;
+const A4_WIDTH = 2480;
+const A4_HEIGHT = 3508;
 
-  const input = document.getElementById('photos');
-  const scaleInput = document.getElementById('scale');
-  const rotateInput = document.getElementById('rotate');
-  const formatSelect = document.getElementById('format');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = A4_WIDTH;
+canvas.height = A4_HEIGHT;
 
-  let tiles = [];
-  let activeIndex = null;
-  let dragStart = null;
+const input = document.getElementById('photos');
+const scaleInput = document.getElementById('scale');
+const rotateInput = document.getElementById('rotate');
+const formatSelect = document.getElementById('format');
 
-  input.addEventListener('change', loadPhotos);
+let tiles = [];
+let activeIndex = null;
+let dragStart = null;
 
-  scaleInput.addEventListener('input', () => {
-    if (activeIndex !== null) {
-      tiles[activeIndex].scale = +scaleInput.value;
-      draw();
-    }
-  });
+input.addEventListener('change', loadPhotos);
 
-  rotateInput.addEventListener('change', () => {
-    if (activeIndex !== null) {
-      tiles[activeIndex].rotate = rotateInput.checked;
-      draw();
-    }
-  });
+scaleInput.addEventListener('input', () => {
+  if (activeIndex !== null) {
+    tiles[activeIndex].scale = +scaleInput.value;
+    draw();
+  }
+});
 
-  canvas.addEventListener('pointerdown', e => {
-    const { offsetX, offsetY } = getCanvasPos(e);
-    activeIndex = hitTest(offsetX, offsetY);
-    if (activeIndex !== null) {
-      const t = tiles[activeIndex];
-      scaleInput.value = t.scale;
-      rotateInput.checked = t.rotate;
-      dragStart = { x: offsetX, y: offsetY };
-    }
-  });
+rotateInput.addEventListener('change', () => {
+  if (activeIndex !== null) {
+    tiles[activeIndex].rotate = rotateInput.checked;
+    draw();
+  }
+});
 
-  canvas.addEventListener('pointermove', e => {
-    if (dragStart && activeIndex !== null) {
-      const { offsetX, offsetY } = getCanvasPos(e);
-      tiles[activeIndex].offsetX += offsetX - dragStart.x;
-      tiles[activeIndex].offsetY += offsetY - dragStart.y;
-      dragStart = { x: offsetX, y: offsetY };
-      draw();
-    }
-  });
+canvas.addEventListener('pointerdown', e => {
+  const pos = getCanvasPos(e);
+  activeIndex = hitTest(pos.x, pos.y);
+  if (activeIndex !== null) {
+    const t = tiles[activeIndex];
+    scaleInput.value = t.scale;
+    rotateInput.checked = t.rotate;
+    dragStart = pos;
+  }
+});
 
-  canvas.addEventListener('pointerup', () => dragStart = null);
-  canvas.addEventListener('pointerleave', () => dragStart = null);
+canvas.addEventListener('pointermove', e => {
+  if (dragStart && activeIndex !== null) {
+    const pos = getCanvasPos(e);
+    tiles[activeIndex].offsetX += pos.x - dragStart.x;
+    tiles[activeIndex].offsetY += pos.y - dragStart.y;
+    dragStart = pos;
+    draw();
+  }
+});
 
-  document.getElementById('download').addEventListener('click', () => {
-    const mime = formatSelect.value;
-    const ext = mime === 'image/png' ? 'png' : 'jpg';
+canvas.addEventListener('pointerup', () => dragStart = null);
+canvas.addEventListener('pointerleave', () => dragStart = null);
 
-    const a = document.createElement('a');
-    a.download = `a4_3x7.${ext}`;
-    a.href = mime === 'image/jpeg'
-      ? canvas.toDataURL(mime, 0.92)
-      : canvas.toDataURL(mime);
-    a.click();
-  });
+document.getElementById('download').addEventListener('click', () => {
+  const mime = formatSelect.value;
+  const ext = mime === 'image/png' ? 'png' : 'jpg';
 
-  async function loadPhotos() {
-    tiles = [];
-    const files = Array.from(input.files).slice(0, COLS * ROWS);
-    for (const file of files) {
+  const a = document.createElement('a');
+  a.download = `a4_3x7.${ext}`;
+  a.href = mime === 'image/jpeg'
+    ? canvas.toDataURL(mime, 0.92)
+    : canvas.toDataURL(mime);
+  a.click();
+});
+
+async function loadPhotos() {
+  tiles = [];
+  const files = Array.from(input.files).slice(0, COLS * ROWS);
+
+  for (const file of files) {
+    try {
       const img = await loadImage(file);
       tiles.push({
         img,
@@ -140,85 +148,106 @@
         offsetY: 0,
         rotate: false
       });
+    } catch (e) {
+      console.error("画像読み込み失敗:", e);
     }
-    draw();
   }
+  draw();
+}
 
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const tileW = A4_WIDTH / COLS;
-    const tileH = A4_HEIGHT / ROWS;
+  const tileW = A4_WIDTH / COLS;
+  const tileH = A4_HEIGHT / ROWS;
 
-    tiles.forEach((t, i) => {
-      const col = i % COLS;
-      const row = Math.floor(i / COLS);
+  tiles.forEach((t, i) => {
 
-      const baseScale = Math.max(
-        tileW / (t.rotate ? t.img.height : t.img.width),
-        tileH / (t.rotate ? t.img.width : t.img.height)
-      );
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
 
-      const scale = baseScale * t.scale;
-      const drawW = t.img.width * scale;
-      const drawH = t.img.height * scale;
+    const logicalW = t.rotate ? t.img.height : t.img.width;
+    const logicalH = t.rotate ? t.img.width : t.img.height;
 
-      const cx = col * tileW + tileW / 2 + t.offsetX;
-      const cy = row * tileH + tileH / 2 + t.offsetY;
+    const baseScale = Math.max(
+      tileW / logicalW,
+      tileH / logicalH
+    );
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(col * tileW, row * tileH, tileW, tileH);
-      ctx.clip();
+    const scale = baseScale * t.scale;
 
-      ctx.translate(cx, cy);
-      if (t.rotate) ctx.rotate(Math.PI / 2);
-      ctx.drawImage(t.img, -drawW / 2, -drawH / 2, drawW, drawH);
-      ctx.restore();
+    const drawW = t.img.width * scale;
+    const drawH = t.img.height * scale;
 
-      if (i === activeIndex) {
-        ctx.strokeStyle = '#007aff';
-        ctx.lineWidth = 6;
-        ctx.strokeRect(col * tileW, row * tileH, tileW, tileH);
-      }
+    const cx = col * tileW + tileW / 2 + t.offsetX;
+    const cy = row * tileH + tileH / 2 + t.offsetY;
+
+    ctx.save();
+
+    ctx.beginPath();
+    ctx.rect(col * tileW, row * tileH, tileW, tileH);
+    ctx.clip();
+
+    ctx.translate(cx, cy);
+    if (t.rotate) ctx.rotate(Math.PI / 2);
+
+    ctx.drawImage(t.img, -drawW / 2, -drawH / 2, drawW, drawH);
+
+    ctx.restore();
+
+    if (i === activeIndex) {
+      ctx.strokeStyle = '#007aff';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(col * tileW, row * tileH, tileW, tileH);
+    }
+  });
+}
+
+function hitTest(x, y) {
+  const tileW = A4_WIDTH / COLS;
+  const tileH = A4_HEIGHT / ROWS;
+  const col = Math.floor(x / tileW);
+  const row = Math.floor(y / tileH);
+  const index = row * COLS + col;
+  return tiles[index] ? index : null;
+}
+
+function getCanvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+    y: (e.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+async function loadImage(file) {
+  let blob = file;
+
+  if (
+    file.type === 'image/heic' ||
+    file.type === 'image/heif' ||
+    file.name.toLowerCase().endsWith('.heic')
+  ) {
+    const result = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: 0.95
     });
+
+    blob = Array.isArray(result) ? result[0] : result;
   }
 
-  function hitTest(x, y) {
-    const tileW = A4_WIDTH / COLS;
-    const tileH = A4_HEIGHT / ROWS;
-    const col = Math.floor(x / tileW);
-    const row = Math.floor(y / tileH);
-    const index = row * COLS + col;
-    return tiles[index] ? index : null;
-  }
-
-  function getCanvasPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      offsetX: (e.clientX - rect.left) * (canvas.width / rect.width),
-      offsetY: (e.clientY - rect.top) * (canvas.height / rect.height)
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      resolve(img);
     };
-  }
+    img.onerror = reject;
+    img.src = URL.createObjectURL(blob);
+  });
+}
 
-  async function loadImage(file) {
-    let blob = file;
-
-    // HEIC → JPEG に変換
-    if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
-      blob = await heic2any({
-        blob: file,
-        toType: 'image/jpeg',
-        quality: 0.95
-      });
-    }
-
-    return new Promise(resolve => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.src = URL.createObjectURL(blob);
-    });
-  }
 })();
 </script>
 
