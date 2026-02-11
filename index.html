@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>A4 Photo Tiler Editor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
   body {
     font-family: system-ui, -apple-system, sans-serif;
@@ -20,12 +21,15 @@
     margin-top: 12px;
   }
 </style>
+
+<!-- HEIC対応ライブラリ -->
+<script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
 </head>
 <body>
 
 <h2>A4 3×7 写真タイル（編集可）</h2>
 
-<input type="file" id="photos" accept="image/*" multiple>
+<input type="file" id="photos" accept="image/*,.heic" multiple>
 
 <canvas id="canvas"></canvas>
 
@@ -118,20 +122,17 @@
 
     const a = document.createElement('a');
     a.download = `a4_3x7.${ext}`;
-
-    // JPGのみ quality を指定
     a.href = mime === 'image/jpeg'
       ? canvas.toDataURL(mime, 0.92)
       : canvas.toDataURL(mime);
-
     a.click();
   });
 
   async function loadPhotos() {
     tiles = [];
     const files = Array.from(input.files).slice(0, COLS * ROWS);
-    for (let i = 0; i < files.length; i++) {
-      const img = await loadImage(files[i]);
+    for (const file of files) {
+      const img = await loadImage(file);
       tiles.push({
         img,
         scale: 1,
@@ -173,7 +174,6 @@
       ctx.translate(cx, cy);
       if (t.rotate) ctx.rotate(Math.PI / 2);
       ctx.drawImage(t.img, -drawW / 2, -drawH / 2, drawW, drawH);
-
       ctx.restore();
 
       if (i === activeIndex) {
@@ -201,11 +201,22 @@
     };
   }
 
-  function loadImage(file) {
+  async function loadImage(file) {
+    let blob = file;
+
+    // HEIC → JPEG に変換
+    if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
+      blob = await heic2any({
+        blob: file,
+        toType: 'image/jpeg',
+        quality: 0.95
+      });
+    }
+
     return new Promise(resolve => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.src = URL.createObjectURL(file);
+      img.src = URL.createObjectURL(blob);
     });
   }
 })();
