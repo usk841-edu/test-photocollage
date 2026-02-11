@@ -39,6 +39,14 @@
     <input type="checkbox" id="rotate">
     90度回転
   </label>
+  <br><br>
+  <label>
+    保存形式：
+    <select id="format">
+      <option value="image/jpeg" selected>JPG</option>
+      <option value="image/png">PNG</option>
+    </select>
+  </label>
 </div>
 
 <button id="download">この内容でダウンロード</button>
@@ -58,6 +66,7 @@
   const input = document.getElementById('photos');
   const scaleInput = document.getElementById('scale');
   const rotateInput = document.getElementById('rotate');
+  const formatSelect = document.getElementById('format');
 
   let tiles = [];
   let activeIndex = null;
@@ -104,9 +113,17 @@
   canvas.addEventListener('pointerleave', () => dragStart = null);
 
   document.getElementById('download').addEventListener('click', () => {
+    const mime = formatSelect.value;
+    const ext = mime === 'image/png' ? 'png' : 'jpg';
+
     const a = document.createElement('a');
-    a.download = 'a4_3x7.png';
-    a.href = canvas.toDataURL('image/png');
+    a.download = `a4_3x7.${ext}`;
+
+    // JPGのみ quality を指定
+    a.href = mime === 'image/jpeg'
+      ? canvas.toDataURL(mime, 0.92)
+      : canvas.toDataURL(mime);
+
     a.click();
   });
 
@@ -136,15 +153,12 @@
       const col = i % COLS;
       const row = Math.floor(i / COLS);
 
-      // 回転時のみ、フィット計算で縦横を入れ替える
       const baseScale = Math.max(
         tileW / (t.rotate ? t.img.height : t.img.width),
         tileH / (t.rotate ? t.img.width : t.img.height)
       );
 
       const scale = baseScale * t.scale;
-
-      // ★ drawImage には「元画像サイズ」を使う
       const drawW = t.img.width * scale;
       const drawH = t.img.height * scale;
 
